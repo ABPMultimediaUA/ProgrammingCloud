@@ -1,9 +1,0 @@
-Leyenda de colores:
-
-PM - Azul
-SDM - Verde
-SMBI - Naranja
-E-Learning - Oro
-SMA - Rojo
-PostPD - Gris
-NM - Amarillo
