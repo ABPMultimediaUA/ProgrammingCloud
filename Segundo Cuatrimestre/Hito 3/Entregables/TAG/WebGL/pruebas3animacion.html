@@ -1,0 +1,266 @@
+<html>
+
+<head>
+<title>Prueba Motor TAG 1</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="js/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="js/webgl-utils.js"></script>
+<script type="text/javascript" src="js/gestorRecursos.js"></script>
+<script type="text/javascript" src="js/tree.js"></script>
+<script type="text/javascript" src="js/interfaceMotor.js"></script>
+
+<script id="per-fragment-lighting-fs" type="x-shader/x-fragment">
+    precision mediump float;
+
+    //LAS VARIABLES VARYING PASAN DATOS DE UN SHADER A OTRO
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+
+    //ESTO SERA PAR EL BRILLO DEL MATERIAL, PERO ANTES QUIERO VER SI ME FUNCIONAN BIEN LAS LUCES
+    uniform float uMaterialShininess;
+    uniform bool uUseLighting;
+    uniform bool uUseTextures;
+
+    //EN ESTA VARIABLE ALMACENAMOS LA INTENSIDAD DE LA LUZ AMBIENTAL
+    uniform vec3 uAmbientColor;
+    //NUMERO DE LUCES NORMALES
+    uniform int uNLights;
+    //AQUI ME CREO UN ARRAY DE VECTORES CON LA POSICION DE LAS LUCES
+    uniform float uScenePointLights[54];
+    
+    //NUMERO DE LUCES NORMALES
+    uniform int uNDirectionalLights;
+    uniform float uSceneDirectionalLights[78];   
+    
+    //LA VARIABLE SAMPLER SE ENCARGA DE LEER LA TEXTURA
+    uniform sampler2D uSampler;
+
+    void main(void) {
+        //INICIALIZAMOS LA INTENSIDAD DANDOLE EL VALOR DEL DE LA LUZ AMBIENTAL
+        vec3 lightWeighting;
+        if (!uUseLighting) {
+            lightWeighting = vec3(1.0, 1.0, 1.0);
+        }else{
+            lightWeighting = uAmbientColor;
+
+            vec3 lDirection;
+            vec3 eyeDirection;
+            vec3 reflectionDirection;
+            vec3 normal = normalize(vTransformedNormal);
+            vec3 auxIntensidad;
+            float specularLightWeighting;
+            float diffuseLightWeighting;
+            
+            bool operar = true;
+            int iterador = 0;
+
+            vec3 posAux;
+            vec3 difAux;
+            vec3 espAux;
+            vec3 dirAux;
+            float angAux;
+            for(int i=0; i<54; i+=9){
+                if(operar){
+                    posAux = vec3(
+                                uScenePointLights[i], 
+                                uScenePointLights[i+1], 
+                                uScenePointLights[i+2]
+                            );
+
+                    difAux = vec3(
+                                uScenePointLights[i+3], 
+                                uScenePointLights[i+4], 
+                                uScenePointLights[i+5]
+                            );
+
+                    espAux = vec3(
+                                uScenePointLights [i+6], 
+                                uScenePointLights [i+7], 
+                                uScenePointLights [i+8]
+                            );
+
+                    lDirection = normalize(posAux - vPosition.xyz);
+                    //NORMALIZAR DIRECCION DE LA VISTA
+                    eyeDirection = normalize(-vPosition.xyz);
+                    //NORMALIZAR VECTOR DIRECCION DE LA LUZ REFLEJADA (CON LA FUNCION DE GLSL REFLECT)
+                    reflectionDirection = reflect(-lDirection, normal);
+
+                    //PRODUCTO ESCARLAR DE LA ORIENTACION DEL VERTICE POR LA DIRECCION DE LA LUZ (EN ESTE CASO LA REFLEJADA) PARA ESE VERTICE
+                    //DE ESTA FORMA OBTENEMOS EL PESO DE LA LUZ SOBRE ESE PUNTO
+                    specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+                    //HACEMOS LO PROPIO CON LA LUZ DIFUSA
+                    diffuseLightWeighting = max(dot(normal, lDirection), 0.0);
+
+                    auxIntensidad = espAux * specularLightWeighting + difAux * diffuseLightWeighting;
+
+                    lightWeighting = lightWeighting + auxIntensidad;
+
+                    iterador++;
+                    if(iterador >= uNLights){
+                        operar = false;
+                    }
+                }
+            }
+
+            iterador = 0;
+            operar = true;
+            float angleFocus;
+
+            for(int i=0; i<78; i +=13){
+                if(operar){
+                    posAux = vec3(
+                                uSceneDirectionalLights[i], 
+                                uSceneDirectionalLights[i+1], 
+                                uSceneDirectionalLights[i+2]
+                            );
+
+                    difAux = vec3(
+                                uSceneDirectionalLights[i+3], 
+                                uSceneDirectionalLights[i+4], 
+                                uSceneDirectionalLights[i+5]
+                            );
+
+                    espAux = vec3(
+                                uSceneDirectionalLights[i+6], 
+                                uSceneDirectionalLights[i+7], 
+                                uSceneDirectionalLights[i+8]
+                            );
+
+                    dirAux = vec3(
+                                uSceneDirectionalLights[i+9], 
+                                uSceneDirectionalLights[i+10], 
+                                uSceneDirectionalLights[i+11]
+                            );
+                    
+                    angAux = uSceneDirectionalLights[i+12];
+
+                    if(angAux >= 0.0 && angAux < 1.0){
+                        // CALCULAMOS EL ANGULO ENTRE LA DIRECCION DE LA LUZ Y EL VERTICE ACTUAL
+                        angleFocus = max(dot(dirAux, lDirection), 0.0);
+                        //SI ESTE ANGULO ES MENOR AL MAXIMO PREESTABLECIDO, OPERAMOS
+                        if(angleFocus < angAux){
+                            lDirection = normalize(posAux - vPosition.xyz);
+                            //NORMALIZAR DIRECCION DE LA VISTA
+                            eyeDirection = normalize(-vPosition.xyz);
+                            //NORMALIZAR VECTOR DIRECCION DE LA LUZ REFLEJADA (CON LA FUNCION DE GLSL REFLECT)
+                            reflectionDirection = reflect(-lDirection, normal);
+
+                            //PRODUCTO ESCARLAR DE LA ORIENTACION DEL VERTICE POR LA DIRECCION DE LA LUZ (EN ESTE CASO LA REFLEJADA) PARA ESE VERTICE
+                            //DE ESTA FORMA OBTENEMOS EL PESO DE LA LUZ SOBRE ESE PUNTO
+                            specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+                            //HACEMOS LO PROPIO CON LA LUZ DIFUSA
+                            diffuseLightWeighting = max(dot(normal, lDirection), 0.0);
+                            //Y SUMAMOS ESTOS VECTORES DE INTENSIDAD A LA INTENSIDAD GENERAL DEL PUNTO QUE QUEREMOS ILUMINAR
+                            auxIntensidad = espAux * specularLightWeighting + difAux * diffuseLightWeighting;
+                        }
+                    }
+
+                    lightWeighting = lightWeighting + auxIntensidad;
+
+                    iterador++;
+                    if(iterador >= uNDirectionalLights){
+                        operar = false;
+                    }
+                }
+            }
+        }
+
+        vec4 fragmentColor;
+        if (uUseTextures) {
+            fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+        } else {
+            fragmentColor = vec4(1.0, 1.0, 1.0, 1.0);
+        }
+        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a);
+    }
+
+</script>
+
+<script id="per-fragment-lighting-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+
+    void main(void) {
+        //EL CALCULO DE GL_POSITION LO HAGO EN DOS PASOS YA QUE VPOSITION TAMBIEN LO UTILIZARE POR SEPARADO MAS ADELANTE
+        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * vPosition;
+        
+        vTextureCoord = aTextureCoord;
+        vTransformedNormal = uNMatrix * aVertexNormal;
+    }
+</script>
+
+
+<script type="text/javascript">
+    function webGLStart(){
+        var canvas = document.getElementById("lesson14-canvas");
+        creaEscena(canvas);
+        var vr = [0.0, 0.0, -40.0];
+        var vr2 = [23.4, 180.0, -23.4];
+        var vr3 = [0.0, 0.2, 0.0];
+        var tran = crearTraslacion(escena.getTreeNode(), vr, false);
+        var tran2 = crearRotacion(tran, vr2, false);
+        var tran3 = crearRotacion(tran2, vr3, true);
+        var tran4 = crearEscalado(tran3, [1.001, 1.001, 1.001], true);
+
+        var camara = crearCamara(escena.getTreeNode());
+        usarCamara(camara);
+        usaPerspectiva(camara, 45, 0.1, 100.0);
+
+        var iDif = [0.5, 0.5, 0.5];
+        var iEsp = [0.7, 0.7, 0.7];
+        var luz1 = crearLuz(escena.getTreeNode(), iDif, iEsp, null, null);
+        ponerLuzAmbiental([1.0, 1.0, 1.0]);
+        
+        var m1 = ["data/Teapot.json", "img/earth.jpg"];
+        var m2 = ["data/Teapot.json", "img/moon.gif"];
+        var m3 = ["data/Teapot.json", "img/galvanizado.jpg"];
+        var m4 = ["data/Teapot.json", "img/crate.gif"];
+        var m5 = ["data/portatil.json", "img/earth.jpg"];
+        var m6 = ["data/portatil.json", "img/moon.gif"];
+        var m7 = ["data/portatil.json", "img/galvanizado.jpg"];
+        var m8 = ["data/portatil.json", "img/crate.gif"];
+
+        var arrayAux = [];
+        arrayAux.push(m1);
+        arrayAux.push(m2);
+        arrayAux.push(m3);
+        arrayAux.push(m4);
+        arrayAux.push(m5);
+        arrayAux.push(m6);
+        arrayAux.push(m7);
+        arrayAux.push(m8);
+        var animacion = crearAnimacion(tran4, arrayAux);
+
+        console.log('antes de tick')
+        tick();
+    }
+</script>
+
+<style type="text/css">
+    #lesson14-canvas {
+        border: solid 1px black;
+    }
+</style>
+
+</head>
+
+
+<body onload="webGLStart();">
+
+    <canvas id="lesson14-canvas" width="500" height="500"></canvas>
+    
+</body>
+
+</html>

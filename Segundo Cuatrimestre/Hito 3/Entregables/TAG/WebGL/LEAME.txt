@@ -1,0 +1,8 @@
+Para visualizar el contenido de los html es necesario ejecutarlos desde un servidor.
+
+En la consola del buscador estarán visibles los comentarios del recorrido del código
+durante la ejecución.
+
+*****************
+
+Las luces han sido incluidas finalmente con éxito dentro del motor.
